@@ -1,0 +1,56 @@
+import psutil
+import time
+
+while True:
+    # Get CPU usage as a percentage
+    cpu_usage = psutil.cpu_percent()
+
+    # Get RAM usage statistics
+    mem = psutil.virtual_memory()
+    ram_usage = mem.used / mem.total * 100
+
+    # Get temperature of the CPU
+    cpu_temp = None
+    try:
+        # Try to get the temperature using the "sensors_temperatures" function
+        sensors_temps = psutil.sensors_temperatures()
+        for name, entries in sensors_temps.items():
+            if "coretemp" in name.lower():
+                for entry in entries:
+                    if "core" in entry.label.lower():
+                        cpu_temp = entry.current
+                        break
+                if cpu_temp is not None:
+                    break
+        if cpu_temp is None:
+            # If the "sensors_temperatures" function doesn't work, fall back to the "win32_TemperatureProbe" class
+            wmi_obj = psutil.win32.wmi()
+            temps = wmi_obj.query("SELECT * FROM win32_TemperatureProbe")
+            for temp in temps:
+                if "cpu" in temp.Name.lower():
+                    cpu_temp = temp.CurrentReading
+                    break
+    except Exception as e:
+        # If there's an exception, print the error message and continue
+        print(f"Error getting CPU temperature: {e}")
+    
+    # Get hard disk usage statistics
+    disk = psutil.disk_usage('/')
+    disk_usage = disk.used / disk.total * 100
+
+    # Get network usage statistics
+    net_io = psutil.net_io_counters()
+    network_usage = net_io.bytes_sent / 1024 / 1024, net_io.bytes_recv / 1024 / 1024
+
+    # Print the live data
+    print(f"CPU usage: {cpu_usage}%")
+    print(f"RAM usage: {ram_usage:.2f}%")
+    if cpu_temp is not None:
+        print(f"CPU temperature: {cpu_temp}°C")
+    else:
+        print("CPU temperature data not available")
+    print(f"Disk usage: {disk_usage:.2f}%")
+    print(f"Network usage: Sent: {network_usage[0]:.2f} MB, Received: {network_usage[1]:.2f} MB")
+
+    # Wait for one second before printing the next set of data
+    time.sleep(1)
