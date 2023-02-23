@@ -1,56 +1,69 @@
 import psutil
 import time
+import tkinter as tk
+from tkinter import ttk
 
-while True:
-    # Get CPU usage as a percentage
+# Create a Tkinter window
+root = tk.Tk()
+root.title("System Monitor")
+
+# Create labels to display the data
+cpu_label = ttk.Label(root, text="CPU usage:")
+ram_label = ttk.Label(root, text="RAM usage:")
+gpu_label = ttk.Label(root, text="GPU usage:")
+disk_label = ttk.Label(root, text="Disk usage:")
+net_label = ttk.Label(root, text="Network usage:")
+cpu_data = ttk.Label(root, text="")
+ram_data = ttk.Label(root, text="")
+gpu_data = ttk.Label(root, text="")
+disk_data = ttk.Label(root, text="")
+net_data = ttk.Label(root, text="")
+cpu_label.grid(column=0, row=0, sticky=tk.W)
+ram_label.grid(column=0, row=1, sticky=tk.W)
+gpu_label.grid(column=0, row=2, sticky=tk.W)
+disk_label.grid(column=0, row=3, sticky=tk.W)
+net_label.grid(column=0, row=4, sticky=tk.W)
+cpu_data.grid(column=1, row=0, sticky=tk.W)
+ram_data.grid(column=1, row=1, sticky=tk.W)
+gpu_data.grid(column=1, row=2, sticky=tk.W)
+disk_data.grid(column=1, row=3, sticky=tk.W)
+net_data.grid(column=1, row=4, sticky=tk.W)
+
+# Update the labels with the live data
+def update_labels():
     cpu_usage = psutil.cpu_percent()
-
-    # Get RAM usage statistics
     mem = psutil.virtual_memory()
     ram_usage = mem.used / mem.total * 100
-
-    # Get temperature of the CPU
-    cpu_temp = None
-    try:
-        # Try to get the temperature using the "sensors_temperatures" function
-        sensors_temps = psutil.sensors_temperatures()
-        for name, entries in sensors_temps.items():
-            if "coretemp" in name.lower():
-                for entry in entries:
-                    if "core" in entry.label.lower():
-                        cpu_temp = entry.current
-                        break
-                if cpu_temp is not None:
-                    break
-        if cpu_temp is None:
-            # If the "sensors_temperatures" function doesn't work, fall back to the "win32_TemperatureProbe" class
-            wmi_obj = psutil.win32.wmi()
-            temps = wmi_obj.query("SELECT * FROM win32_TemperatureProbe")
-            for temp in temps:
-                if "cpu" in temp.Name.lower():
-                    cpu_temp = temp.CurrentReading
-                    break
-    except Exception as e:
-        # If there's an exception, print the error message and continue
-        print(f"Error getting CPU temperature: {e}")
-    
-    # Get hard disk usage statistics
     disk = psutil.disk_usage('/')
     disk_usage = disk.used / disk.total * 100
-
-    # Get network usage statistics
     net_io = psutil.net_io_counters()
-    network_usage = net_io.bytes_sent / 1024 / 1024, net_io.bytes_recv / 1024 / 1024
+    network_usage = f"Sent: {net_io.bytes_sent / 1024 / 1024:.2f} MB, Received: {net_io.bytes_recv / 1024 / 1024:.2f} MB"
 
-    # Print the live data
-    print(f"CPU usage: {cpu_usage}%")
-    print(f"RAM usage: {ram_usage:.2f}%")
-    if cpu_temp is not None:
-        print(f"CPU temperature: {cpu_temp}°C")
-    else:
-        print("CPU temperature data not available")
-    print(f"Disk usage: {disk_usage:.2f}%")
-    print(f"Network usage: Sent: {network_usage[0]:.2f} MB, Received: {network_usage[1]:.2f} MB")
+    # Get GPU usage statistics
+    gpu_usage = None
+    try:
+        # Try to get the GPU usage using the "nvidia-smi" command
+        process = psutil.Popen(['nvidia-smi', '--query-gpu=utilization.gpu', '--format=csv,noheader'], stdout=psutil.PIPE)
+        output, error = process.communicate(timeout=1)
+        if error:
+            raise Exception(f"Error getting GPU usage: {error}")
+        gpu_usage = float(output.decode().strip().split('\n')[0].replace('%', ''))
+    except Exception as e:
+        # If there's an exception, print the error message and continue
+        print(f"Error getting GPU usage: {e}")
 
-    # Wait for one second before printing the next set of data
-    time.sleep(1)
+    # Update the labels with the live data
+    cpu_data.config(text=f"{cpu_usage}%")
+    ram_data.config(text=f"{ram_usage:.2f}%")
+    gpu_data.config(text=f"{gpu_usage:.2f}%" if gpu_usage is not None else "GPU usage data not available")
+    disk_data.config(text=f"{disk_usage:.2f}%")
+    net_data.config(text=network_usage)
+
+    # Schedule the next update after one second
+    root.after(1000, update_labels)
+
+# Start updating the labels
+update_labels()
+
+# Start the Tkinter event loop
+root.mainloop()
